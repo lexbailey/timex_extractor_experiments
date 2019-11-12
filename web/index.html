@@ -1,0 +1,201 @@
+<html>
+    <head>
+         <meta charset="UTF-8">
+        <title>Timex finder</title>
+        <script src="brython.js"></script>
+        <script src="brython_stdlib.js"></script>
+        <script type="text/python" class="webworker" id="worker0" src="worker_regex.py"></script>
+        <script type="text/python" class="webworker" id="worker1" src="worker_bayes.py"></script>
+        <style type='text/css'>
+            div{
+                margin-top:0;
+                margin-bottom:1em;
+            }
+            div.output{
+                font-size:2em;
+                border:1px solid black;
+                padding-top: 0.7em;
+                padding-left: 0.7em;
+                padding-right: 0.7em;
+            }
+            div.loader{
+                position:relative;
+                top: -3.38em;
+                height:2em;
+                font-size:2em;
+            }
+            div.methodname{
+                margin-bottom:0;
+                font-size:0.8em;
+            }
+            div.outtext{
+                float:left;
+                margin-bottom:0;
+            }
+            div.loadspin{
+                float:right;
+                margin-bottom:0;
+                max-height:1em;
+            }
+            img.spin{
+                position: relative;
+                top: -0.3em;
+                height:2em;
+            }
+        </style>
+    </head>
+    <body onload="brython()" style="font-family:sans-serif">
+        <script type='text/javascript'>
+            if (typeof OffscreenCanvas == 'undefined'){
+                console.log("No OffscreenCanvas support");
+                tfworker = false;
+            }
+            else{
+                tfworker = new Worker('worker.js');
+            }
+        </script>
+        <script type="text/python3">
+            from browser import worker as ww
+            from browser import document, alert, timer, window, bind
+            w0 = ww.Worker('worker0')
+            w1 = ww.Worker('worker1')
+            tfw = False
+            tfw_ = window.tfworker
+            if tfw_:
+                tfw_.send = tfw_.postMessage
+                tfw = tfw_
+
+            workers = [w0, w1, tfw]
+
+            t = None
+            done = [True, True, True]
+            last_toks = []
+            loaded = 0
+
+            def callback(m):
+                global done, loaded
+                c, *d = m.data
+                names = {'regex': 0, 'bayes': 1, 'nn': 2}
+                if c.startswith('loaded'):
+                    loaded += 1
+                    if loaded == 2:
+                        document["text"].bind("input", run_all)
+                        document["text"].bind("change", run_manual)
+                        document["loading_screen"].style['display'] = 'none'
+                        document["content"].style['display'] = 'block'
+                        run_all(None)
+                elif c in names:
+                    index = names[c]
+                    toks, result = d
+                    show_result(result, toks, 'output%d' % (index+1))
+                    done[index] = True
+                    if document['text'].value.split(' ') != toks:
+                        run(index)
+                else:
+                    print("unknown message")
+                    print(c)
+                    print(d)
+
+            def hide_spinner(name):
+                el = document[name+'-load']
+                el.style['display'] = 'none'
+
+            def show_spinner(name):
+                el = document[name+'-load']
+                el.style['display'] = 'inline'
+
+            def hide_result(name):
+                el = document[name]
+                el.style['opacity'] = '0.2'
+                if document['auto'].checked:
+                    show_spinner(name)
+
+            def show_result(result, toks, name):
+                hide_spinner(name)
+                el = document[name]
+                el.innerHTML = ''
+                el.style['opacity'] = '1'
+                for tag, tok in zip(result, toks):
+                    new = document.createElement('span')
+                    new.innerText = tok + ' '
+                    if tag == 1:
+                        new.style = {'color':'#00ca00', 'font-weight':'bold'}
+                    el.appendChild(new)
+
+            def run(index):
+                global done
+                toks = document["text"].value.split(" ")
+                if done[index]:
+                    done[index] = False
+                    worker = workers[index]
+                    if worker:
+                        hide_result('output%d' % (index+1))
+                        worker.send(['run', toks])
+                    else:
+                        done[index] = True
+
+            def run_manual(ev):
+                if not document['auto'].checked:
+                    pass # TODO
+
+            if tfw:
+                bind(tfw, "message")(callback)
+            else:
+                document['unsupported'].style['display']='block'
+                hide_spinner('output3')
+
+            bind(w0, "message")(callback)
+            bind(w1, "message")(callback)
+                    
+
+            def run_all(ev):
+                for i in range(3):
+                    run(i)
+
+            run_all(None)
+        </script>
+        <div id="header" style='width:80%;margin:auto;'>
+            <h1>Timex finder</h1>
+            <p>A demonstration of three different methods of locating timexes in a sentence.</p>
+        </div>
+        <div id="loading_screen" style='width:80%;margin:auto;text-align:center'>
+            <p style='font-size:3em'>Loading...</p>
+            <img style='height:5em;' src='loading.gif' />
+        </div>
+        <div id="content" style='width:80%;margin:auto;display:none'>
+            <div style='float:right;display:inline'><input id='auto' type='checkbox' name='auto' checked/><label for='auto'>Rerun automatically while typing</label></div>
+            <div class="methodname">Input text:</div>
+            <input id="text" autofocus style='width:100%;margin-bottom:1em;font-size:1.5em;' value='The party started five minutes ago'>
+            <div class="methodname">Regular expression pattern matcher:</div>
+            <div class="output">
+                <div class="outtext" id="output1"></div>
+                <div class="loadspin" id="output1-load"><img class="spin" src='loading.gif' /></div>
+                <div style='clear:both;'></div>
+            </div>
+            <div class="methodname">Naive bayes classifier:</div>
+            <div class="output">
+                <div class="outtext" id="output2"></div>
+                <div class="loadspin" id="output2-load"><img class="spin" src='loading.gif' /></div>
+                <div style='clear:both;'></div>
+            </div>
+            <div class="methodname">Deep neural network:</div>
+            <div class="output">
+                <div class="outtext" id="unsupported" style="color:red;display:none;">(Your browser doesn't support this. Try Chrome)</div>
+                <div class="outtext" id="output3"></div>
+                <div class="loadspin" id="output3-load"><img class="spin" src='loading.gif' /></div>
+                <div style='clear:both;'></div>
+            </div>
+            <div>
+                <h2>What is this?</h2>
+                <p>It's a demo of three methods of extracting timex information from strings. All of the algorithms that do this are running in your browser. They were originally written in python, and so to avoid duplicating code (and having to potentially rewrite lots of regexes) the regex and bayes extractors run with brython (browser python, a python interpreter implemented in javascript). The deep NN model is running on tensorflowjs. The learning data came from tempeval2. The NN uses a pretrained word embedding from GloVe. Enjoy :)</p>
+                <h2>Usage notes</h2>
+                <p>When "Rerun automatically while typing" is disabled, press enter to rerun.</p>
+                <p>Tokenisation is done by splitting on spaces, so you should prefer "Yesterday , today , and tomorrow ." over "Yesterday, today, and tomorrow."</p>
+                <h2>Why doesn't it work for "&lt;some sentence&gt;"?</h2>
+                <p>Short answer; because the training data was lacking.</p>
+                <p>Longer answer; the bottom two algorithms are severly affected by a lack of training data. The regex based parser is not, but instead is far from perfect because it takes lots of human effort to make it good. It still outperforms the naive bayes classifier and usually keeps up with the deep nn (and in many cases is actually the only algorithm that gets everything right). The deep nn sometimes gives surprising results.</p>
+            </div>
+
+        </div>
+    </body>
+</html>

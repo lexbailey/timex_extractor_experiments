@@ -1,0 +1,12 @@
+venv
+__pycache__
+*.pyc
+*.h5
+web/Lib
+web/tfjs_model
+web/word_index.json
+glove.6B.100d.txt
+word_index.json
+time_extract.png
+data/tempeval-training-2/
+data/tempeval2-trial/

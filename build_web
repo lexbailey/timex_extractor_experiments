@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -e
+
+mkdir -p web/Lib/site-packages
+mkdir -p web/tfjs_model
+echo "Copying python sources.."
+cp regex_parser.py web/Lib/site-packages/regex_parser.py
+cp bayes_extractor.py web/Lib/site-packages/bayes_extractor.py
+echo "Generating data sources..."
+./dump_regexes.py > web/Lib/site-packages/regex_data.py
+./dump_bayes_table.py > web/Lib/site-packages/bayes_data.py
+./dump_to_tfjs.py
+cp word_index.json web/word_index.json
