@@ -4,4 +4,4 @@
 
 `./build_web` will generate the web interface in the `web` folder
 
-`./run_experiments.pyi -k 10` will run all the experiments and return some results
+`./run_experiments.py -k 10` will run all the experiments and return some results
